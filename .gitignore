@@ -1,0 +1,9 @@
+# Build/dev artifacts
+result
+result-*
+node_modules/
+*.log
+
+# Runtime state (native save files)
+framework.sav
+*.sav
