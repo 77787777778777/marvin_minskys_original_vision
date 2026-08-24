@@ -15,11 +15,11 @@ feather.register(interp, 'host_load', () => {
 });
 
 const src = (p) => fs.readFileSync(p, 'utf8');
-for (const f of ['../frames.tcl', '../engine.tcl', '../cache.tcl', '../shims.tcl', '../world.tcl', 'game.tcl']) {
+for (const file of ['../frames.tcl', '../engine.tcl', '../cache.tcl', '../shims.tcl', '../world.tcl', 'game/game.tcl']) {
   try {
-    feather.eval(interp, src(f));
+    feather.eval(interp, src(file));
   } catch (e) {
-    console.error(`SOURCE FAILED: ${f}: ${e.message}`);
+    console.error(`SOURCE FAILED: ${file}: ${e.message}`);
     process.exit(1);
   }
 }
