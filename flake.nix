@@ -25,6 +25,7 @@
         framework = pkgs.stdenvNoCC.mkDerivation {
           name = "framework-game";
           src = self;
+          nativeBuildInputs = [ pkgs.makeWrapper ];
           dontBuild = true;
           installPhase = ''
             mkdir -p $out/share/framework $out/bin
