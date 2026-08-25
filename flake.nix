@@ -39,16 +39,18 @@
           passthru.web = web-dist;
         };
 
-        # The browser build: the same Tcl plus the Feather interpreter,
-        # one static directory. Serve it with any HTTP server.
+        # The browser build: Feather WASM + the same core Tcl the native
+        # game runs (index.html fetches frames/engine/cache/shims/world
+        # from its own directory), plus the host-driven entry point.
         web-dist = pkgs.stdenvNoCC.mkDerivation {
           name = "framework-web";
           src = self;
           dontBuild = true;
           installPhase = ''
-            mkdir -p $out
-            cp -r web/* $out/
-            rm -f $out/test.mjs
+            mkdir -p $out/game
+            cp web/*.js web/*.wasm web/*.html $out/
+            cp web/game/game.tcl $out/game/
+            cp frames.tcl engine.tcl cache.tcl shims.tcl world.tcl $out/
           '';
         };
 
