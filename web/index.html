@@ -174,10 +174,10 @@ function jsToTcl(s) {
 function run(cmdline) {
   append(cmdline, 'cmd');
   try {
-    // Pass the raw line as ONE argument. (An earlier version wrapped it in
-    // [list {...}], which made submit receive literal braces: "{x".)
-    const result = feather.eval(interp, '::game::game_cmd [list ' +
-        jsToTcl(cmdline) + ']');
+    // Pass the raw line as one brace-quoted Tcl word. (An earlier version
+    // wrapped it in [list {...}]: [list] builds a LIST VALUE whose string
+    // form re-adds braces, so submit received "{x" as the verb.)
+    const result = feather.eval(interp, '::game::game_cmd ' + jsToTcl(cmdline));
     for (const line of result.split('\n')) {
       if (/^\*\*\*/.test(line) || /score has just gone up/.test(line)) append(line, 'title');
       else if (/Something went wrong/.test(line)) append(line, 'err');
