@@ -80,7 +80,7 @@
           # dir and run the harness from inside it, so relative imports
           # resolve. ($out is read-only until the final install.)
           mkdir -p $TMPDIR/harness
-          cp -r ${web} $TMPDIR/harness
+          cp -r ${web}/. $TMPDIR/harness
           cp ${src}/web/test.mjs $TMPDIR/harness/test.mjs
           cd $TMPDIR/harness
           node test.mjs | tee log
