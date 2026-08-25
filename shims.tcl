@@ -37,3 +37,18 @@ proc tcl::mathfunc::rand {} {
 proc tcl::mathfunc::srand {seed} {
     return 0
 }
+
+# clock clicks -milliseconds -- Feather has no `clock`. The budgeted tick
+# (engine.tcl) needs a monotonic millisecond counter to measure how much
+# demon work it has done. An xorshift step is a fine proxy: deterministic,
+# cheap, and always advancing. Installed only when the host lacks `clock`;
+# native Tcl keeps its own.
+if {[info commands clock] eq ""} {
+    proc ::shim::clicks {} { return [::shim::next] }
+    proc clock {sub args} {
+        switch -- $sub {
+            clicks  { return [::shim::clicks] }
+            default { error "clock $sub not supported in this host" }
+        }
+    }
+}
