@@ -409,11 +409,49 @@ proc ::game::execute {input} {
 }
 
 # tick -- fire the each-turn demon of every frame that declares one.
+#
+# On slow hosts (Feather WASM in a browser) a full pass over every demon
+# blocks the player's next command for many seconds. So the work is
+# BUDGETED: each tick spends at most ::game::tick-budget-ms of measured
+# time on demons, then remembers where it stopped (::sched::cursor) and
+# resumes there on the next tick. The world keeps turning -- one slice of
+# NPC attention per turn -- while the player stays responsive. Fast hosts
+# finish the whole rotation within budget and never notice.
+namespace eval ::sched {
+    variable order  {}  ;# demons to run, discovered once
+    variable cursor {}  ;# resume point after a budget expiry
+    variable used   0   ;# ms spent this tick
+    variable budget_ms 150
+}
 proc ::game::tick {} {
-    foreach f [frames::all] {
-        set demon [frames::fget $f each-turn]
-        if {$demon ne ""} { uplevel #0 [list {*}$demon $f] }
+    set t0 [clock clicks -milliseconds]
+    if {[llength $::sched::order] == 0} {
+        foreach f [frames::all] {
+            if {[llength [frames::fget $f each-turn]]} { lappend ::sched::order $f }
+        }
     }
+    set n [llength $::sched::order]
+    if {$n == 0} return
+    set start 0
+    if {$::sched::cursor ne ""} {
+        set idx [lsearch -exact $::sched::order $::sched::cursor]
+        if {$idx >= 0} { set start [expr {($idx + 1) % $n}] }
+    }
+    for {set k 0} {$k < $n} {incr k} {
+        set idx [expr {($start + $k) % $n}]
+        set f [lindex $::sched::order $idx]
+        set demon [frames::fget $f each-turn]
+        if {$demon eq ""} continue
+        set d0 [clock clicks -milliseconds]
+        uplevel #0 [list {*}$demon $f]
+        incr ::sched::used [expr {[clock clicks -milliseconds] - $d0}]
+        set next [lindex $::sched::order [expr {($idx + 1) % $n}]]
+        if {$::sched::used >= $::sched::budget_ms} {
+            set ::sched::cursor $next
+            return
+        }
+    }
+    set ::sched::cursor {}
 }
 
 # ===========================================================================

@@ -163,10 +163,21 @@ function append(text, cls) {
 
 let feather, interp, ready = false;
 
+// Quote an arbitrary JS string as one literal Tcl word: backslash-escape
+// every character Tcl treats specially inside braces is unnecessary -- we
+// emit a brace-quoted word, escaping only braces and backslashes, which
+// are the only two characters significant inside {...}.
+function jsToTcl(s) {
+  return '{' + s.replace(/\\/g, '\\\\').replace(/\{/g, '\\{').replace(/\}/g, '\\}') + '}';
+}
+
 function run(cmdline) {
   append(cmdline, 'cmd');
   try {
-    const result = feather.eval(interp, `::game::game_cmd [list {${cmdline.replace(/'/g, "\\'")}}]`);
+    // Pass the raw line as ONE argument. (An earlier version wrapped it in
+    // [list {...}], which made submit receive literal braces: "{x".)
+    const result = feather.eval(interp, '::game::game_cmd [list ' +
+        jsToTcl(cmdline) + ']');
     for (const line of result.split('\n')) {
       if (/^\*\*\*/.test(line) || /score has just gone up/.test(line)) append(line, 'title');
       else if (/Something went wrong/.test(line)) append(line, 'err');
