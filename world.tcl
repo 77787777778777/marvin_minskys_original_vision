@@ -117,7 +117,7 @@ frames::defframe player {
     viewpoint {default plain}
     lenses    {default plain}
     score     {value 0      if-added ::game::on-score}
-    max-score {value 6}
+    max-score {value 12}
 }
 
 # A perspective is a frame imposed on a scene: a way of regarding it. The
@@ -285,6 +285,14 @@ frames::defframe black-cat {
     description   {value "A small black cat with judgmental yellow eyes. It appears to be supervising."}
     greet         {value "The black cat regards you for a moment, then looks away, unimpressed."}
     default-reply {value "\"Meow,\" the cat explains."}
+    topics        {value {
+        mouse  "\"Mine,\" the cat says, in the tone of a philosopher stating a self-evident truth."
+        toy    "\"Also mine. Everything small is mine. This is my whole philosophy.\""
+        cat    "\"Yes?\" The look you receive could end an argument."
+        meow   "\"Meow,\" the cat agrees, as if you had finally understood something."
+        frames "\"The cat stares at you for a long moment, then at the door, then back. You understand: she is holding a frame of 'door means mouse escapes' and checking it against reality. Cats are natural frame theorists."
+        house  "\"The house,\" her expression implies, \"is simply where I keep my things. You are tolerated.\""
+    }}
 }
 
 frames::defframe magpie {
@@ -301,6 +309,13 @@ frames::defframe magpie {
     description   {value "A big, glossy magpie with a larcenous gleam in its eye. It is forever sizing up anything that glints."}
     greet         {value "The magpie cocks its head and looks pointedly at your hands."}
     default-reply {value "The magpie chatters, watching your pockets."}
+    topics        {value {
+        shiny  "\"Shiny is good,\" the magpie says with total conviction. Its treasure-frame has exactly one terminal, and this fills it."
+        silver "\"Silver! Shiny! Good!\" The distinctions you might draw simply have nowhere to land on that frame."
+        coin   "\"Round and shiny. The best kind of thing.\""
+        nest   "\"There is a place where all the shiny goes.\" It glances east before it can stop itself."
+        thief  "The magpie looks deeply unapologetic."
+    }}
 }
 
 frames::defframe pack-rat {
@@ -321,6 +336,13 @@ frames::defframe pack-rat {
     description   {value "A scruffy, bright-eyed pack rat with a cunning, calculating way of watching the other thieves in the house. It keeps a scrap of tinsel tucked in its cheek, the way a cardsharp keeps an ace."}
     greet         {value "The pack rat freezes, watching you with glittering eyes."}
     default-reply {value "The pack rat twitches its whiskers and ignores you."}
+    topics        {value {
+        magpie "\"A fool,\" the rat says of its rival. \"Sees a gleam, must have it. A mind like that can be led anywhere -- you just put the gleam where you want it to look.\""
+        shiny  "\"Shiny is not one thing to everyone. To HER it is one thing. That is her whole weakness, spelled out in four letters.\""
+        plan   "\"Everything I do is two moves ahead of what she thinks I am doing. Sometimes three. The trick is modelling your model of me.\""
+        tinsel "\"Worthless,\" it says, with the expression of someone holding a winning card."
+        cellar "\"Dark. Quiet. No eyes down there at all.\""
+    }}
 }
 
 frames::defframe toy-mouse {
@@ -404,6 +426,8 @@ frames::defframe oak-chest {
     locked       {value 1}
     lockable     {value 1}
     unlocks-with {value iron-key}
+    material      {default wood}
+    contents-kind {default keepsakes}
 }
 
 frames::defframe dusty-tome {
@@ -422,6 +446,8 @@ frames::defframe old-bone {
     names       {value {bone femur}}
     location    {value cellar}
     description {value "A large, well-aged soup bone. Somewhere, something would treasure this."}
+    size        {default large}
+    chewy       {default 1}
 }
 
 # One physical feature, two framings: examining it returns a reading keyed

@@ -46,6 +46,9 @@ namespace eval ::game {
     variable seq      0
     variable savefile "framework.sav"
     variable pending  {} ;# a plan awaiting the player's yes/no confirmation
+    variable teach     0  ;# has the difference-network aside been shown yet?
+    variable asked     {} ;# topics already discussed with anyone (see `ask`)
+    variable glossary_terms {} ;# Minsky vocabulary words (set by do-frame)
     variable planroom   "" ;# room the planner is reasoning about (here, or a remote goal room)
     variable planremote 0  ;# 1 when planning at a distance: only carried tools are usable
     variable quiet       0  ;# suppress full room descriptions while a plan is being carried out
@@ -239,8 +242,16 @@ proc ::game::execute {input} {
 
     set action [find-action $verb]
     if {$action eq ""} {
-        say "I don't know how to \"$verb\"."
-        return
+        # Glossary shortcut: a bare Minsky term ("default", "demon") is
+        # shorthand for "frame <term>".
+        if {[lsearch -exact $::game::glossary_terms $verb] >= 0} {
+            set toks [concat frame $toks]
+            set action frame
+            set verb frame
+        } else {
+            say "I don't know how to \"$verb\"."
+            return
+        }
     }
 
     # --- instantiate the stereotype ----------------------------------------
@@ -500,6 +511,17 @@ proc ::game::on-score {frame slot value} {
         say ""
         say "*** You have mastered the Framework. You win! ***"
         say "(You may keep exploring, or type \"quit\".)"
+        # The win is no longer the end of learning: insights and deeds are
+        # tracked separately, so a solver who never spoke to anyone can see
+        # what talking would have taught them.
+        set n [llength $::game::asked]
+        if {$n < 6} {
+            say "(Insights gathered: $n of 6. The house's archives hold more --"
+            say "ask its people about things, even ordinary things.)"
+        } else {
+            say "(All six insights gathered. A mind, as Minsky said, meets each"
+            say "new moment with a frame -- and you leave knowing whose.)"
+        }
     }
 }
 
@@ -531,6 +553,85 @@ proc ::game::on-npc-satisfied {frame slot value} {
     frames::fput $frame hostile 0
     say [frames::fget $frame satisfied-msg]
     add-score
+}
+
+# ---------------------------------------------------------------------------
+# WHY -- the engine narrates its own reasoning.
+#
+# Minsky's paper is a theory of what happens inside the matcher; the `why`
+# verb turns that inside out, so that at any moment you can ask the engine
+# to show its work: which frame it selected for this place and how it came
+# to be held, what defaults are quietly standing in for unobserved fact,
+# and what the situation is currently asking of you (its open questions).
+# Educationally this is the load-bearing verb: every mechanism the papers
+# describe becomes inspectable state rather than a footnote.
+# ---------------------------------------------------------------------------
+proc ::game::do-why {inst} {
+    variable here
+
+    say "Why not? Here is the frame I am holding on this place:"
+    set vp [frames::fget player viewpoint]
+    if {$vp ne "" && $vp ne "plain"} {
+        say "  You imposed [frames::fget $vp label] on it (you asked to view it that way)."
+        say "  The scene underneath is unchanged; only the reading of its shared"
+        say "  terminals differs. Type \"view plain\" to drop the framing."
+    } else {
+        say "  The $here frame was selected when you arrived: a room is a"
+        say "  stereotype, and this room fills its terminals."
+    }
+
+    # Defaults standing in for unobserved fact -- Minsky's weakly-bound
+    # expectations, shown as the guesses they are.
+    set dflt {}
+    foreach f [concat [list $here] [contents $here]] {
+        if {![dict exists $::frames::db $f]} continue
+        foreach slot [dict keys [dict get $::frames::db $f]] {
+            if {![dict exists $::frames::db $f $slot default]} continue
+            if {[dict exists $::frames::db $f $slot value]} continue ;# confirmed: no guess needed
+            set v [dict get $::frames::db $f $slot default]
+            if {$v eq "" || $v eq "0"} continue ;# silent defaults aren't interesting
+            lappend dflt [list $f $slot $v]
+        }
+    }
+    if {[llength $dflt]} {
+        say ""
+        say "Defaults standing in for things nobody has told me:"
+        foreach entry $dflt {
+            lassign $entry f slot v
+            if {$v eq "1"} { set v "yes" }
+            say "  [the $f]'s $slot -- assumed \"$v\" until you look properly."
+        }
+    }
+
+    # Open questions: the terminals the current situation wants filled.
+    # Minsky 2.8: the terminals of a frame ARE the questions about it.
+    set q {}
+    foreach p [contents $here] {
+        if {[frames::isa? $p person] && ![frames::fget $p satisfied]} {
+            set w [frames::fget $p wants]
+            if {$w ne ""} { lappend q "What would please [the $p]? (It expects something.)" }
+        }
+    }
+    foreach scn [frames::all] {
+        if {![frames::isa? $scn scenario] || $scn eq "scenario"} continue
+        if {[frames::fget $scn done] eq "1"} continue
+        set pl [frames::fget $scn place]
+        if {$pl ne "" && $pl ne $here} continue
+        set steps [frames::fget $scn steps]
+        set prog [frames::fget $scn progress]
+        if {$prog == 0} {
+            lappend q "[string totitle $scn]: nothing confirmed yet -- it awaits [lindex $steps 0]."
+        } elseif {$prog < [llength $steps]} {
+            lappend q "[string totitle $scn]: awaiting [lindex $steps $prog]."
+        }
+    }
+    if {[llength $q]} {
+        say ""
+        say "Questions this situation is still asking:"
+        foreach x $q { say "  - $x" }
+    }
+    say ""
+    say "(Every line above is one of the paper's mechanisms, mid-run.)"
 }
 
 # If-needed procedure: compute a container's description from its state.
@@ -1477,6 +1578,7 @@ proc ::game::step-phrase {verb obj second} {
 
 proc ::game::offer-plan {plan} {
     variable pending
+    variable teach
     set steps [dict get $plan steps]
     set obst  [dict get $plan obstacle]
     set phrases {}
@@ -1486,6 +1588,16 @@ proc ::game::offer-plan {plan} {
     set lead [expr {$obst ne "" ? "[string totitle $obst]. " : ""}]
     if {[llength $phrases]} {
         say "${lead}I can [join-and $phrases], then $orig. Shall I? (yes/no)"
+        # Once per session, name the machinery that just ran. This is
+        # Minsky's matching process made visible: the situation refused to
+        # fit, and the engine walked the difference network until it did.
+        if {!$teach} {
+            set teach 1
+            say "(What just happened: the situation would not fit the frame, so"
+            say "I followed a chain of differences -- each step removes one thing"
+            say "that stood between you and the goal. Ask \"why\" anytime to see"
+            say "the machinery laid bare.)"
+        }
     } else {
         say "${lead}I can $orig. Shall I? (yes/no)"
     }
@@ -2227,9 +2339,62 @@ frames::defframe restore {
 
 frames::defframe help {
     ako     {value action}
-    verbs   {value {help ?}}
+    verbs   {value {help about commands}}
     perform {value ::game::do-help}
 }
+
+frames::defframe why {
+    ako       {value action}
+    verbs     {value {why}}
+    terminals {value {}}
+    perform   {value ::game::do-why}
+}
+
+# frame -- a living glossary. Each term of Minsky's vocabulary is defined
+# and then pointed at its own occurrence in the house, so the player can go
+# and stand inside the definition. This is the paper, cross-referenced
+# against the world it built.
+frames::defframe frame {
+    ako       {value action}
+    verbs     {value {frame}}
+    terminals {value {term}}
+    term      {literal 1}
+    perform   {value ::game::do-frame}
+}
+proc ::game::do-frame {inst} {
+    variable here
+    set term [string tolower [join [frames::fget $inst term] " "]]
+    set gloss [dict create \
+        frame      {"A remembered stereotype of a situation: terminals to fill, defaults standing in for what goes unobserved." "This entire house is one. The dusty tome in the cellar is the paper itself."} \
+        terminal   {"A slot on a frame awaiting a particular -- or standing in for the question that situation asks." "The troll's 'wants' terminal is a question; bring the bone and you have answered it."} \
+        default    {"A weakly-bound expectation, displaced the moment reality supplies better. Reasoning by example instead of by axiom." "Type \"why\" here: every line under 'Defaults' is a guess the engine is quietly living on."} \
+        marker     {"A condition a filler must meet before it may enter a terminal." "Try GIVE LAMP TO TROLL: the give-frame demands an animate second -- the lamp bounces off."} \
+        ako        {"A-kind-of: the inheritance link. What is true of the general is presumed of the specific until contradicted." "The troll is a person is a thing; ask WHY after he moves aside."} \
+        demon      {"A procedure attached to a slot, fired when a value is added or removed. Expectations with teeth." "Lift the amulet off its pedestal and listen for the gong. That was an if-removed demon."} \
+        scenario   {"A script: an ordered set of expected events, confirmed one by one -- and collapsed by disorder." "The inscription in this library describes one. Ring the candle first and feel it unravel."} \
+        difference {"A named gap between expectation and observation, with an operator attached that removes it." "In the dark cellar, ask TAKE TOME: darkness is a difference; LIGHT LAMP is its remover."} \
+        similarity {"A link between frames labelled by the difference that leads from one to the other." "When OPEN fails on the chest, the engine offers UNLOCK -- that suggestion rode a similarity link."} \
+        perspective {"A frame imposed on a scene whose features stay put while their meanings change." "Ask the curator about wine, then VIEW in the cellar: same hooks, same stain, different room."} \
+        belief     {"One mind's map of the world -- updated only by what it perceives, so it can be wrong, and fooled." "There are two thieves abroad who act on belief alone. A closed pouch defeats both."} \
+        system     {"Frames of the same situation joined by transformations, sharing terminals across viewpoints." "Sweep the telescope full circle: four fields, four shared stars -- the shared corners ARE the figure."} \
+    ]
+    set ::game::glossary_terms [dict keys $gloss]
+    if {$term eq ""} {
+        say "Minsky's vocabulary, as this house embodies it:"
+        foreach t [dict keys $gloss] { say "  frame $t" }
+        say "Any term may be asked about by name."
+        return
+    }
+    if {![dict exists $gloss $term]} {
+        say "That word is not one of the framework's. Try: [join [dict keys $gloss] {, }]."
+        return
+    }
+    lassign [dict get $gloss $term] defn where
+    say "$term:" ; say "  $defn"
+    say "See it in the house:" ; say "  $where"
+}
+
+# why -- (action registered above)
 
 frames::defframe quit {
     ako     {value action}
@@ -2390,6 +2555,7 @@ proc ::game::do-give {inst} {
 }
 
 proc ::game::do-ask {inst} {
+    variable asked
     set who   [frames::fget $inst object]
     set topic [frames::fget $inst topic]
     if {$topic eq ""} {
@@ -2411,6 +2577,22 @@ proc ::game::do-ask {inst} {
             lappend known $persp
             frames::fput player lenses $known
             say "(You find you can now picture [frames::fget $persp of-name] through [frames::fget $persp label]. Try \"view\".)"
+        }
+    }
+    # Learning is the game's real economy: a genuinely new fact learned
+    # from an archive counts, once. Minsky 3.x -- memory requests filled by
+    # consulting what knows. Reward curiosity without making it grindy:
+    # re-asking costs nothing but scores nothing.
+    set key "$who|$topic"
+    if {[dict exists $topics $topic] && [lsearch -exact $asked $key] < 0} {
+        lappend asked $key
+        set n [llength $asked]
+        if {$n <= 6} {
+            say "(You have learned something genuinely new to you. \[Insight $n.\])"
+            add-score
+            if {$n == 6} {
+                say "(That is every insight the house holds. The curator would be pleased.)"
+            }
         }
     }
 }
@@ -2560,6 +2742,8 @@ proc ::game::do-help {inst} {
     say "  ask <person> about <topic>, give <thing> to <person>, say <word>"
     say "  view (list framings), view as <role>, view plain"
     say "  look through <thing>, turn <thing> left/right"
+    say "  why -- see the frame machinery running on this very place"
+    say "  frame, or frame <term> -- Minsky's vocabulary, with house examples"
     say "  inventory (i), score, wait (z), save, restore, quit"
     say "Pronouns work: \"take lamp\" then \"light it\"."
     say "When something is in the way, I may propose a plan -- answer yes or no."

@@ -16,7 +16,7 @@ Requires only a stock Tcl 8.5+ interpreter.
 
 ## The game
 
-Seven rooms, three characters, six points:
+Seven rooms, three characters, twelve points (six deeds + six insights):
 
 ```
                  [Observatory]      <- the troll guards this stair;
@@ -34,10 +34,13 @@ telescope across the whole sky assembles a hidden constellation (+1); the
 candle waits up there too; the curator in the library knows the word; bell
 + candle + word, performed in order before the inscription, open the vault
 (+1); the silver amulet leaves its pedestal to the sound of a warning gong
-(+1); the curator rewards whoever brings it to him (+1, and the game is
-won). A spoiler-free hint system is built in: ask the curator about almost
-anything. The cellar can be *re-seen* once the troll and curator lend you
-their frames — try `view` there.
+(+1); the curator rewards whoever brings it to him (+1). Beyond the six
+deeds there are six *insights*: new facts learned by asking the house's
+people about things -- curiosity is scored too. A spoiler-free hint system
+is built in: ask the curator about almost anything. The cellar can be
+*re-seen* once the troll and curator lend you their frames — try `view`
+there. And `why` explains, at any moment, exactly which frames and defaults
+the engine is running on.
 
 <details>
 <summary>Full walkthrough (spoilers)</summary>
@@ -269,6 +272,38 @@ what lets a decoy work.
 | Discourse frames | `person` terminals: `topics`, `greet`, `default-reply`, `wants` | "ask curator about frames" is a dict lookup on a discourse frame; "give bone to troll" satisfies an NPC's `wants` expectation and fires its demon |
 | Expectation vs. observation | darkness handling | in an unlit room the room frame's terminals are invisible; only your carried frames remain in scope |
 | The world as one knowledge base | `save` / `restore` | the entire game state is the frame database — one dict — so persistence is writing it to `framework.sav` and reading it back |
+
+## The educational layer
+
+Three verbs and a scoring economy turn the engine from a thing described
+by the paper into a thing that teaches it:
+
+- **`why`** — at any moment, shows the machinery running: which frame was
+  selected for this place, every *default* currently standing in for an
+  unobserved fact ("the oak chest's material — assumed \"wood\" until you
+  look properly"), and the open *questions* the situation still asks
+  (unsatisfied NPC wants, scenario steps awaiting their next event).
+  Minsky 2.8 says the terminals of a frame ARE its questions; this verb
+  prints them.
+
+- **`frame <term>`** — a living glossary of Minsky's vocabulary (frame,
+  terminal, default, marker, ako, demon, scenario, difference,
+  similarity, perspective, belief, system). Each definition points at its
+  own occurrence in the house: "demon" sends you to lift the amulet and
+  hear the gong; "similarity" sends you to try OPEN on a locked chest.
+  Bare terms work too: typing `demon` alone is shorthand for
+  `frame demon`.
+
+- **Insights** — asking any character about a topic they genuinely know
+  scores once. Six insights exist across the curator's archive and the
+  three characters' small topic sets; the win requires all six deeds AND
+  all six insights, so curiosity is not optional flavor but half the
+  game. Re-asking costs nothing and scores nothing. A solver who never
+  talks sees, at the win, exactly what talking would have taught them.
+
+The plan-offer also explains itself, once: after assembling its first
+difference chain it names the mechanism ("the situation would not fit the
+frame, so I followed a chain of differences").
 
 ## The three layers
 
