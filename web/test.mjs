@@ -1,16 +1,55 @@
-import { createFeather } from '/home/wrath/framework-game/web/feather.js';
+// Node harness for the Feather/WASM build.
+// Sources the game layers + cache.tcl + shims.tcl + game/game.tcl, then plays
+// the full walkthrough (deeds + insights) and checks save/restore via host
+// commands. Paths are resolved relative to THIS file so the harness runs
+// both from a checkout and from the nix check sandbox.
+import { createFeather } from './feather.js';
 import fs from 'fs';
-const f = await createFeather(fs.readFileSync('/home/wrath/framework-game/web/feather.wasm'));
+import path from 'path';
+import url from 'url';
+
+const here = path.dirname(url.fileURLToPath(import.meta.url));
+const src = (p) => fs.readFileSync(path.resolve(here, p), 'utf8');
+
+const f = await createFeather(fs.readFileSync(path.join(here, 'feather.wasm')));
 const interpId = f.create();
 let saved = null;
-f.register(interpId, 'host_save', (a) => { saved = a.join(' '); });
-f.register(interpId, 'host_load', () => { if(saved===null) throw new Error('no'); return saved; });
-const src = (p) => fs.readFileSync(p,'utf8');
-for (const file of ['../frames.tcl','../engine.tcl','../cache.tcl','../shims.tcl','../world.tcl','game/game.tcl']) f.eval(interpId, src(file));
-f.eval(interpId,'::game::boot_web');
+f.register(interpId, 'host_save', (args) => { saved = args.join(' '); });
+f.register(interpId, 'host_load', () => {
+  if (saved === null) throw new Error('there is no saved game to restore');
+  return saved;
+});
 
-// Full walkthrough with progress output so we can see it working even if
-// the total runtime exceeds a shell timeout. Run in background and poll.
+for (const file of ['../frames.tcl', '../engine.tcl', '../cache.tcl', '../shims.tcl', '../world.tcl', 'game/game.tcl']) {
+  try {
+    f.eval(interpId, src(file));
+  } catch (e) {
+    console.error(`SOURCE FAILED: ${file}: ${e.message}`);
+    process.exit(1);
+  }
+}
+console.log('SOURCE OK');
+
+console.log(f.eval(interpId, '::game::boot_web').split('\n')[0], '- boot ok');
+
+// save/restore round trip
+f.eval(interpId, '::game::game_cmd {take key}');
+console.log('save:', f.eval(interpId, '::game::game_cmd {save}').trim());
+console.log('db captured:', saved ? saved.length + ' chars' : 'NO');
+f.eval(interpId, '::game::game_cmd {drop key}');
+const inv = f.eval(interpId, '::game::game_cmd {inventory}').trim();
+console.log('after drop:', inv.split('\n')[0]);
+console.log('restore:', f.eval(interpId, '::game::game_cmd {restore}').trim().split('\n')[0]);
+const inv2 = f.eval(interpId, '::game::game_cmd {inventory}').trim();
+console.log('after restore:', inv2.split('\n')[0]);
+const roundtrip = saved !== null && /iron key/.test(inv2);
+
+// Full walkthrough: six deeds AND six insights; win condition is 12/12.
+// Commands are passed exactly as the browser passes them: one brace-quoted word.
+function jsToTcl(s) {
+  return '{' + s.replace(/\\/g, '\\\\').replace(/\{/g, '\\{').replace(/\}/g, '\\}') + '}';
+}
+
 const walk = [
   'north', 'east',
   'ask curator about frames', 'ask curator about minsky',
@@ -25,23 +64,12 @@ const walk = [
   'south', 'down', 'east', 'ring bell', 'light candle', 'say frame',
   'east', 'take amulet', 'west', 'give amulet to curator',
 ];
-let win = false, failedAt = '', roundtrip = false;
-
-f.eval(interpId, '::game::game_cmd {take key}');
-console.log('save:', f.eval(interpId, '::game::game_cmd {save}').trim());
-console.log('db captured:', saved ? saved.length + ' chars' : 'NO');
-f.eval(interpId, '::game::game_cmd {drop key}');
-f.eval(interpId, '::game::game_cmd {restore}');
-const inv2 = f.eval(interpId, '::game::game_cmd {inventory}').trim();
-roundtrip = /iron key/.test(inv2);
-console.log('restore roundtrip:', roundtrip ? 'OK' : 'FAIL');
-
-let i = 0;
+let win = false, failedAt = '', i = 0;
 for (const cmd of walk) {
   i++;
   const t0 = Date.now();
   try {
-    const out = f.eval(interpId, `::game::game_cmd {${cmd}}`);
+    const out = f.eval(interpId, '::game::game_cmd ' + jsToTcl(cmd));
     if (/mastered the Framework/.test(out)) win = true;
     process.stdout.write(`[${i}/${walk.length}] ${cmd} (${Date.now()-t0}ms)\n`);
   } catch (e) {
