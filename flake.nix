@@ -86,6 +86,7 @@
           node test.mjs | tee log
           grep -q "WALKTHROUGH: WIN" log
           grep -q "ROUNDTRIP: OK"  log
+          mkdir -p $out
           cp log $out/
         '';
     };
