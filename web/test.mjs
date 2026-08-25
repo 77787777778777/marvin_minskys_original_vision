@@ -9,7 +9,17 @@ import path from 'path';
 import url from 'url';
 
 const here = path.dirname(url.fileURLToPath(import.meta.url));
-const src = (p) => fs.readFileSync(path.resolve(here, p), 'utf8');
+// Sources resolve differently in the checkout (the core .tcl files live one
+// level above test.mjs, at the repo root) versus the deployed/check layout
+// (everything flat in one dir). Try both; ordering prefers `here` so the
+// flat layout is checked first.
+const src = (p) => {
+  for (const base of [here, path.resolve(here, '..')]) {
+    const cand = path.resolve(base, p);
+    if (fs.existsSync(cand)) return fs.readFileSync(cand, 'utf8');
+  }
+  throw new Error(`cannot locate ${p}`);
+};
 
 const f = await createFeather(fs.readFileSync(path.join(here, 'feather.wasm')));
 const interpId = f.create();
@@ -20,7 +30,7 @@ f.register(interpId, 'host_load', () => {
   return saved;
 });
 
-for (const file of ['../frames.tcl', '../engine.tcl', '../cache.tcl', '../shims.tcl', '../world.tcl', 'game/game.tcl']) {
+for (const file of ['frames.tcl', 'engine.tcl', 'cache.tcl', 'shims.tcl', 'world.tcl', 'game/game.tcl']) {
   try {
     f.eval(interpId, src(file));
   } catch (e) {
