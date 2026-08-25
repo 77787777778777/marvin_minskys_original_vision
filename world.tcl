@@ -215,6 +215,7 @@ frames::defframe curator {
     short         {value "stooped curator"}
     names         {value {curator man librarian keeper}}
     location      {value library}
+    omnipresent   {value 1}
     description   {value "A stooped old man in a moth-eaten cardigan, dusting books that immediately re-dust themselves. He looks like he knows things."}
     greet         {value "The curator peers at you over his spectacles. \"Ask me about something, dear visitor. The archive is at your disposal.\""}
     default-reply {value "The curator strokes his chin. \"On that subject, I'm afraid, the archive is silent.\""}

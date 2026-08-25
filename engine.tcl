@@ -383,9 +383,14 @@ proc ::game::execute {input} {
         return
     }
     if {$wideObj} {
-        say "You can't get at that from here."
-        frames::delete $inst
-        return
+        # An omnipresent frame (the curator, the house's hint system)
+        # answers from anywhere -- ask/talk reach him across the whole
+        # house. Everything else named-but-elsewhere stays out of reach.
+        if {[frames::fget $pobj omnipresent] ne "1" || ![frames::isa? $pobj person]} {
+            say "You can't get at that from here."
+            frames::delete $inst
+            return
+        }
     }
 
     # --- preconditions, with similarity links on failure -------------------
