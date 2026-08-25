@@ -334,6 +334,15 @@ proc ::game::execute {input} {
                     if {$w ne ""} {
                         set thing $w
                         set wideObj 1
+                        # The object was named but lives elsewhere (e.g. the
+                        # omnipresent curator). Consume its name from the still
+                        # unconsumed nouns, so a following literal terminal --
+                        # ASK's "topic" -- reads the subject, not the object's
+                        # own name again.
+                        foreach n [frames::fget $w names] {
+                            set i [lsearch -exact $nouns $n]
+                            if {$i >= 0} { set nouns [lreplace $nouns $i $i] }
+                        }
                     }
                 }
                 if {$thing eq ""} {
@@ -2386,6 +2395,12 @@ frames::defframe help {
     perform {value ::game::do-help}
 }
 
+frames::defframe hint {
+    ako     {value action}
+    verbs   {value {hint clues nudge tip}}
+    perform {value ::game::do-hint}
+}
+
 frames::defframe why {
     ako       {value action}
     verbs     {value {why}}
@@ -2610,6 +2625,12 @@ proc ::game::do-ask {inst} {
         say [dict get $topics $topic]
     } else {
         say [frames::fget $who default-reply]
+        # A missed topic needles the player toward the dialogue the frame
+        # DOES know, instead of dead-ending on a shrug.
+        set keys [dict keys $topics]
+        if {[llength $keys]} {
+            say "([string totitle [the $who]] knows something about: [join [lrange $keys 0 5] {, }].)"
+        }
     }
     # Some answers lend you a new way of seeing: a frame is acquired.
     set teaches [frames::fget $who teaches]
@@ -2787,10 +2808,32 @@ proc ::game::do-help {inst} {
     say "  look through <thing>, turn <thing> left/right"
     say "  why -- see the frame machinery running on this very place"
     say "  frame, or frame <term> -- Minsky's vocabulary, with house examples"
+    say "  hint / clues -- a nudge when you're stuck"
     say "  inventory (i), score, wait (z), save, restore, quit"
     say "Pronouns work: \"take lamp\" then \"light it\"."
     say "When something is in the way, I may propose a plan -- answer yes or no."
     say "Plans can even cross rooms: ask to take a thing elsewhere and I'll find the route."
+}
+
+# hint -- a nudge, tuned to the moment: point the player at the topics they
+# have not yet mined from the people around them, then remind them of the
+# meta-verbs. No spoilers; it only surfaces what asking would reveal anyway.
+proc ::game::do-hint {inst} {
+    variable asked
+    say "A nudge, then:"
+    set counted 0
+    foreach who [list curator troll black-cat magpie pack-rat] {
+        foreach t [dict keys [frames::fget $who topics]] {
+            if {[lsearch -exact $asked "$who|$t"] >= 0} continue
+            say "  You could ask [the $who] about \"$t\"."
+            if {[incr counted] >= 3} break
+        }
+        if {$counted >= 3} break
+    }
+    if {$counted == 0} {
+        say "  (You have heard everyone out. The house still wants deeds -- six of them and six insights win the game.)"
+    }
+    say "  Type \"why\" to see the machinery, or \"frame <term>\" for Minsky's terms."
 }
 
 proc ::game::do-quit {inst} {
@@ -2808,7 +2851,7 @@ proc ::game::boot {} {
     set running 1
     say "THE FRAMEWORK"
     say "An adventure assembled entirely from Minsky frames."
-    say "Type \"help\" for a list of verbs."
+    say "Type \"help\" for a list of verbs, or \"hint\" if you'd like a nudge."
     set here [frames::fget player location]
     look-around
 }
@@ -2830,7 +2873,7 @@ proc ::game::start {} {
     set running 1
     say "THE FRAMEWORK"
     say "An adventure assembled entirely from Minsky frames."
-    say "Type \"help\" for a list of verbs."
+    say "Type \"help\" for a list of verbs, or \"hint\" if you'd like a nudge."
     set here [frames::fget player location]
     look-around
     while {$running} {

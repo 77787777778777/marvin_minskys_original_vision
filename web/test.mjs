@@ -42,6 +42,24 @@ console.log('SOURCE OK');
 
 console.log(f.eval(interpId, '::game::boot_web').split('\n')[0], '- boot ok');
 
+// Regression probes, fired from the Study BEFORE any movement, so they pin
+// the out-of-view behaviours: the curator is omnipresent but not present.
+function probe(cmd, wantRe, label, wantNot = null) {
+  const out = f.eval(interpId, '::game::game_cmd ' + jsToTcl(cmd));
+  if (wantNot && wantNot.test(out)) { console.log(`${label}: UNEXPECTED ${cmd}`); process.exit(1); }
+  if (wantRe.test(out)) { console.log(`PROBE OK: ${label}`); return 1; }
+  console.log(`PROBE FAIL: ${label} (${cmd})`); console.log(out); process.exit(1);
+  return 0;
+}
+// ask-about must read the TOPIC, not echo the object's own name ("keeper of
+// the frames" is the curator's *self* topic, so it must stay absent here).
+probe('ask curator about frames', /is a remembered stereotype/, 'ask frames (topic vs object)',
+      /keeper of the frames/);
+// the hint verb exists and surfaces someone's topic
+probe('hint', /A nudge, then:/, 'hint verb', null);
+// a missed topic guides the player toward the catalogue instead of shrugging
+probe('ask curator about flurb', /knows something about/, 'unknown topic nudge', null);
+
 // save/restore round trip
 f.eval(interpId, '::game::game_cmd {take key}');
 console.log('save:', f.eval(interpId, '::game::game_cmd {save}').trim());

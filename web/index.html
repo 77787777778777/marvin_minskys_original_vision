@@ -121,24 +121,34 @@
 <form id="form" autocomplete="off">
   <span id="prompt">&gt;</span>
   <input id="cmd" type="text" spellcheck="false" autofocus
-         placeholder='try: look &middot; why &middot; frame demon &middot; ask curator about frames'>
+         placeholder='try: look &middot; hint &middot; ask curator about frames'>
   <button id="go" type="submit">send</button>
 </form>
 <details id="about">
-  <summary>about</summary>
+  <summary>how to play</summary>
   <p>
     Every room, object, character, verb and even the unfolding ritual in this game is a
     Minsky frame (MIT AI Memo 306, <i>A Framework for Representing Knowledge</i>, 1974).
     The engine runs unmodified Tcl &mdash; the same <code>adventure.tcl</code> you can play in a
-    terminal &mdash; inside the Feather WASM interpreter. When an action is impossible, the
-    engine walks a difference network and may propose a whole plan (even across rooms);
-    answer yes/no. NPCs plan with the same machinery, some over private, fallible beliefs.
-    Ask the curator about almost anything for hints.
-    <br><br>
+    terminal &mdash; inside the Feather WASM interpreter.
+  </p>
+  <p>
+    <b>The aim:</b> six deeds and six insights, for a score of 12. Deeds come from
+    solving the puzzles the house sets you; insights come from talking to its people about
+    what they know (each genuinely new fact you learn earns one).
+  </p>
+  <p>
+    <b>Stuck?</b> Type <code>hint</code> (or <code>clues</code>) for a nudge toward what
+    people could still tell you. Almost every noun in the game is also a topic you can
+    <code>ask the curator about</code> &mdash; he answers from anywhere, not just his library.
+    If a topic misses, he'll list what he does know.
+  </p>
+  <p>
     <b>Educational verbs:</b> <code>why</code> shows which frames and defaults the engine is
-    running on right now; <code>frame &lt;term&gt;</code> explains any term of Minsky's
-    vocabulary and points at where the house embodies it. Asking people about things earns
-    insights &mdash; six deeds and six insights win the game.
+    running on right now; <code>frame</code> (alone) lists Minsky's vocabulary and
+    <code>frame &lt;term&gt;</code> explains one term and points at where the house embodies
+    it; <code>view</code> re-frames a room through a perspective you've been taught.
+    <code>help</code> lists every verb.
   </p>
 </details>
 
@@ -198,7 +208,7 @@ async function boot() {
     // cache-bust: every deploy changes the build, so fetch code/data with
     // a version tag and revalidate. (Stale cached JS/Tcl caused players to
     // run old engine code against a new site after deploys.)
-    const V = 'v12';
+    const V = 'v13';
     const bust = (f) => `${f}?v=${V}`;
     const [jsResp, wasmResp] = await Promise.all([
       fetch(bust('feather.js')), fetch(bust('feather.wasm')),
